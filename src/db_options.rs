@@ -36,6 +36,16 @@ fn new_cache(capacity: size_t) -> *mut ffi::rocksdb_cache_t {
     unsafe { ffi::rocksdb_cache_create_lru(capacity) }
 }
 
+fn new_cache_with_num_shard_bits(capacity: size_t, num_shard_bits: c_int) -> *mut ffi::rocksdb_cache_t {
+    unsafe {
+        let opts = ffi::rocksdb_lru_cache_options_create();
+        ffi::rocksdb_lru_cache_options_create();
+        ffi::rocksdb_lru_cache_options_set_capacity(opts, capacity);
+        ffi::rocksdb_lru_cache_options_set_num_shard_bits(opts, num_shard_bits);
+        ffi::rocksdb_cache_create_lru_opts(opts)
+    }
+}
+
 pub(crate) struct CacheWrapper {
     pub(crate) inner: *mut ffi::rocksdb_cache_t,
 }
@@ -55,6 +65,16 @@ impl Cache {
     /// Create a lru cache with capacity
     pub fn new_lru_cache(capacity: size_t) -> Result<Cache, Error> {
         let cache = new_cache(capacity);
+        if cache.is_null() {
+            Err(Error::new("Could not create Cache".to_owned()))
+        } else {
+            Ok(Cache(Arc::new(CacheWrapper { inner: cache })))
+        }
+    }
+
+    /// Create a lru cache with capacity and num_shard_bits
+    pub fn new_lru_cache_with_shard_bits(capacity: size_t, num_shard_bits: c_int) -> Result<Cache, Error> {
+        let cache = new_cache_with_num_shard_bits(capacity, num_shard_bits);
         if cache.is_null() {
             Err(Error::new("Could not create Cache".to_owned()))
         } else {
@@ -774,6 +794,17 @@ impl BlockBasedOptions {
     pub fn set_whole_key_filtering(&mut self, v: bool) {
         unsafe {
             ffi::rocksdb_block_based_options_set_whole_key_filtering(self.inner, c_uchar::from(v));
+        }
+    }
+
+    /// Set the checksum used to verify the data.
+    ///
+    /// Default: kCRC32c = 0x1
+    /// No checksum: kNoChecksum = 0x0
+    /// For more options refer to RocksDB: include/rocksdb/table.h
+    pub fn set_checksum(&mut self, v: char) {
+        unsafe {
+            ffi::rocksdb_block_based_options_set_checksum(self.inner, v as c_char);
         }
     }
 }
